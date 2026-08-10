@@ -1,6 +1,12 @@
 import Link from 'next/link'
 import { getMatches } from '@/lib/data/matches'
 
+const statusLabel: Record<string, string> = {
+  upcoming: 'Sắp tới',
+  completed: 'Đã diễn ra',
+  cancelled: 'Đã hủy',
+}
+
 export default async function AdminMatchesPage() {
   const matches = await getMatches()
 
@@ -28,7 +34,7 @@ export default async function AdminMatchesPage() {
               <td className="py-2">{new Date(m.scheduled_at).toLocaleString('vi-VN')}</td>
               <td className="py-2">{m.match_type === 'internal' ? 'Nội bộ' : `Giao hữu vs ${m.opponent_name}`}</td>
               <td className="py-2">{m.location}</td>
-              <td className="py-2">{m.status}</td>
+              <td className="py-2">{statusLabel[m.status]}</td>
               <td className="py-2">
                 <Link href={`/admin/tran-dau/${m.id}`} className="text-blue-600">
                   Quản lý
