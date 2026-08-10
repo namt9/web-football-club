@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { matchSchema } from '@/lib/validations/match'
+import { matchEventSchema } from '@/lib/validations/match-event'
 
 export async function createMatch(formData: FormData) {
   const parsed = matchSchema.safeParse({
@@ -46,4 +47,41 @@ export async function setParticipants(matchId: string, formData: FormData) {
 
   revalidatePath(`/admin/tran-dau/${matchId}`)
   revalidatePath(`/tran-dau/${matchId}`)
+}
+
+export async function recordResult(matchId: string, formData: FormData) {
+  const teamAScore = Number(formData.get('team_a_score'))
+  const teamBScore = Number(formData.get('team_b_score'))
+
+  const supabase = await createSupabaseServerClient()
+  const { error: matchError } = await supabase
+    .from('matches')
+    .update({ team_a_score: teamAScore, team_b_score: teamBScore, status: 'completed' })
+    .eq('id', matchId)
+  if (matchError) throw matchError
+
+  const memberIds = formData.getAll('event_member_id').map(String)
+  const eventTypes = formData.getAll('event_type').map(String)
+
+  await supabase.from('match_events').delete().eq('match_id', matchId)
+
+  const events = memberIds
+    .map((memberId, i) => ({ memberId, eventType: eventTypes[i] }))
+    .filter((e) => e.memberId && e.eventType)
+    .map((e) =>
+      matchEventSchema.parse({
+        match_id: matchId,
+        member_id: e.memberId,
+        event_type: e.eventType,
+      })
+    )
+
+  if (events.length > 0) {
+    const { error } = await supabase.from('match_events').insert(events)
+    if (error) throw error
+  }
+
+  revalidatePath(`/admin/tran-dau/${matchId}`)
+  revalidatePath(`/tran-dau/${matchId}`)
+  revalidatePath('/thong-ke')
 }
