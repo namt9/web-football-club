@@ -26,3 +26,24 @@ export async function createMatch(formData: FormData) {
   revalidatePath('/lich-thi-dau')
   redirect(`/admin/tran-dau/${data.id}`)
 }
+
+export async function setParticipants(matchId: string, formData: FormData) {
+  const memberIds = formData.getAll('member_id').map(String)
+  const supabase = await createSupabaseServerClient()
+
+  await supabase.from('match_participants').delete().eq('match_id', matchId)
+
+  if (memberIds.length > 0) {
+    const rows = memberIds.map((memberId) => ({
+      match_id: matchId,
+      member_id: memberId,
+      team: String(formData.get(`team_${memberId}`) ?? 'A'),
+      confirmation: 'confirmed' as const,
+    }))
+    const { error } = await supabase.from('match_participants').insert(rows)
+    if (error) throw error
+  }
+
+  revalidatePath(`/admin/tran-dau/${matchId}`)
+  revalidatePath(`/tran-dau/${matchId}`)
+}
