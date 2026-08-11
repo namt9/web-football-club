@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getMatches } from '@/lib/data/matches'
+import { formatVietnamDateTime } from '@/lib/datetime'
 
 const statusLabel: Record<string, string> = {
   upcoming: 'Sắp tới',
@@ -31,7 +32,7 @@ export default async function AdminMatchesPage() {
         <tbody>
           {matches.map((m) => (
             <tr key={m.id} className="border-b">
-              <td className="py-2">{new Date(m.scheduled_at).toLocaleString('vi-VN')}</td>
+              <td className="py-2">{formatVietnamDateTime(m.scheduled_at)}</td>
               <td className="py-2">{m.match_type === 'internal' ? 'Nội bộ' : `Giao hữu vs ${m.opponent_name}`}</td>
               <td className="py-2">{m.location}</td>
               <td className="py-2">{statusLabel[m.status]}</td>

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getMatches } from '@/lib/data/matches'
+import { formatVietnamDateTime } from '@/lib/datetime'
 
 export default async function UpcomingMatchesPage() {
   const matches = await getMatches()
@@ -15,7 +16,7 @@ export default async function UpcomingMatchesPage() {
         {upcoming.map((m) => (
           <li key={m.id} className="rounded border p-3">
             <Link href={`/tran-dau/${m.id}`} className="font-medium text-blue-700">
-              {new Date(m.scheduled_at).toLocaleString('vi-VN')} · {m.location}
+              {formatVietnamDateTime(m.scheduled_at)} · {m.location}
             </Link>
             <p className="text-sm text-gray-600">
               {m.match_type === 'internal' ? 'Nội bộ' : `Giao hữu vs ${m.opponent_name}`} · Sân {m.field_size}
@@ -30,7 +31,7 @@ export default async function UpcomingMatchesPage() {
         {past.map((m) => (
           <li key={m.id} className="rounded border p-3">
             <Link href={`/tran-dau/${m.id}`} className="font-medium text-blue-700">
-              {new Date(m.scheduled_at).toLocaleString('vi-VN')} · {m.location}
+              {formatVietnamDateTime(m.scheduled_at)} · {m.location}
             </Link>
             <p className="text-sm text-gray-600">
               {m.team_a_score ?? '-'} : {m.team_b_score ?? '-'}

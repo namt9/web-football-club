@@ -5,6 +5,7 @@ import { computeFundSummary } from '@/lib/stats/fund-balance'
 import { getMembers } from '@/lib/data/members'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { computeScoringLeaderboard } from '@/lib/stats/scoring-leaderboard'
+import { formatVietnamDateTime } from '@/lib/datetime'
 import type { MatchEvent } from '@/lib/types'
 
 export default async function HomePage() {
@@ -32,7 +33,7 @@ export default async function HomePage() {
         <h2 className="font-semibold">Trận sắp tới</h2>
         {nextMatch ? (
           <Link href={`/tran-dau/${nextMatch.id}`} className="text-blue-700">
-            {new Date(nextMatch.scheduled_at).toLocaleString('vi-VN')} · {nextMatch.location}
+            {formatVietnamDateTime(nextMatch.scheduled_at)} · {nextMatch.location}
           </Link>
         ) : (
           <p className="text-gray-500">Chưa có trận nào sắp tới.</p>

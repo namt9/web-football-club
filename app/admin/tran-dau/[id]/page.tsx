@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getMatch, getMatchParticipants, getMatchEvents } from '@/lib/data/matches'
 import { getMembers } from '@/lib/data/members'
+import { formatVietnamDateTime } from '@/lib/datetime'
 import { setParticipants, recordResult } from '../actions'
 
 export default async function ManageMatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +23,7 @@ export default async function ManageMatchPage({ params }: { params: Promise<{ id
           {match.match_type === 'internal' ? 'Trận nội bộ' : `Giao hữu vs ${match.opponent_name}`}
         </h1>
         <p className="text-gray-600">
-          {new Date(match.scheduled_at).toLocaleString('vi-VN')} · {match.location} · Sân {match.field_size}
+          {formatVietnamDateTime(match.scheduled_at)} · {match.location} · Sân {match.field_size}
         </p>
       </div>
 

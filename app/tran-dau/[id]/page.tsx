@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getMatch, getMatchParticipants, getMatchEvents } from '@/lib/data/matches'
+import { formatVietnamDateTime } from '@/lib/datetime'
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,7 +24,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         {match.match_type === 'internal' ? 'Trận nội bộ' : `Giao hữu vs ${match.opponent_name}`}
       </h1>
       <p className="text-gray-600">
-        {new Date(match.scheduled_at).toLocaleString('vi-VN')} · {match.location} · Sân {match.field_size}
+        {formatVietnamDateTime(match.scheduled_at)} · {match.location} · Sân {match.field_size}
       </p>
 
       {match.status === 'completed' && (

@@ -22,6 +22,19 @@ describe('matchSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('converts scheduled_at from Vietnam local time to a UTC instant', () => {
+    const result = matchSchema.safeParse({
+      match_type: 'internal',
+      field_size: 7,
+      scheduled_at: '2026-08-15T17:00',
+      location: 'Sân ABC',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.scheduled_at).toBe('2026-08-15T10:00:00.000Z')
+    }
+  })
+
   it('rejects field sizes other than 5 or 7', () => {
     const result = matchSchema.safeParse({
       match_type: 'internal',
