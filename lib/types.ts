@@ -24,8 +24,12 @@ export interface FundTransaction {
   description: string | null
   match_id: string | null
   member_id: string | null
+  member_due_id: string | null
   created_at: string
 }
+
+/** Bản mà role `anon` được phép đọc — thiếu 2 cột nhạy cảm. */
+export type PublicFundTransaction = Omit<FundTransaction, 'member_id' | 'member_due_id'>
 
 export type MatchType = 'internal' | 'friendly'
 export type MatchStatus = 'upcoming' | 'completed' | 'cancelled'
@@ -62,4 +66,14 @@ export interface MatchEvent {
   member_id: string
   event_type: MatchEventType
   minute: number | null
+}
+
+export interface MemberDue {
+  id: string
+  member_id: string
+  /** Dạng 'YYYY-MM-DD', luôn là ngày 1 của tháng. */
+  period: string
+  amount_due: number
+  note: string | null
+  created_at: string
 }
