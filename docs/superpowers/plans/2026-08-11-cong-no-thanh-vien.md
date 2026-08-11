@@ -25,7 +25,8 @@
 
 | File | Trách nhiệm |
 |---|---|
-| `supabase/migrations/0003_member_dues.sql` | Bảng `member_dues`, cột `fund_transactions.member_due_id`, RLS, column grants |
+| `supabase/migrations/0003_member_dues.sql` | Bảng `member_dues`, cột `fund_transactions.member_due_id`, RLS |
+| `supabase/migrations/0004_restrict_fund_columns.sql` | Thu hồi quyền đọc 2 cột nhạy cảm khỏi role `anon` — chạy **sau** khi code đã deploy |
 | `lib/types.ts` (sửa) | Thêm `MemberDue`, `PublicFundTransaction`; thêm `member_due_id` vào `FundTransaction` |
 | `lib/data/fund-transactions.ts` (sửa) | Tách hàm đọc public (liệt kê cột) và hàm đọc admin (`*`) |
 | `lib/stats/fund-balance.ts` (sửa) | Nới kiểu tham số để nhận được cả bản public |
@@ -47,7 +48,7 @@
 **Interfaces:**
 - Produces: bảng `member_dues`; cột `fund_transactions.member_due_id`; type `MemberDue`, `PublicFundTransaction`; field `member_due_id` trên `FundTransaction`.
 
-> **Cảnh báo thứ tự:** sau khi apply migration này, ba trang public (`/`, `/quy`) sẽ lỗi 500 vì `lib/data/fund-transactions.ts` đang dùng `select('*')` mà `anon` không còn quyền đọc mọi cột. Task 2 sửa việc đó. Làm Task 2 ngay sau Task 1, đừng để lửng.
+> **Thứ tự có chủ ý:** migration này **không** chạm tới quyền đọc của `fund_transactions`, nên apply xong production vẫn chạy bình thường với code cũ. Phần thu hồi quyền cột nằm ở migration `0004`, cố ý để lại Task 10 — chạy sau khi code mới đã deploy. Dự án chỉ có một Supabase project dùng chung cho local và production, nên revoke sớm sẽ làm site đang sống lỗi 500 ngay.
 
 - [ ] **Step 1: Viết migration**
 
@@ -83,52 +84,38 @@ create policy "admin write member_dues" on member_dues
 
 revoke all on member_dues from anon;
 
--- Chặn anon đọc 2 cột nhạy cảm của fund_transactions.
---
--- Phải revoke ở MỨC BẢNG rồi grant lại theo từng cột. Trong Postgres, quyền
--- mức bảng và mức cột là hai thứ độc lập — chỉ cần một trong hai cho phép là
--- đọc được. Vì anon đang có SELECT mức bảng từ grant mặc định của Supabase,
--- viết `revoke select (member_id) on fund_transactions from anon` sẽ KHÔNG
--- chặn được gì.
-revoke select on fund_transactions from anon;
-grant select (
-  id, transaction_type, category, amount, occurred_on, description, match_id, created_at
-) on fund_transactions to anon;
+-- Phần thu hồi quyền cột của fund_transactions nằm ở 0004, chạy sau khi code
+-- mới đã deploy. Xem Task 10.
 ```
 
 - [ ] **Step 2: Apply migration (thủ công, ngoài repo)**
 
 Mở Supabase Dashboard → SQL Editor, dán toàn bộ nội dung file trên, bỏ chọn hết text (SQL Editor chỉ chạy phần đang được bôi đen nếu có), nhấn Run.
 
-- [ ] **Step 3: Kiểm tra phân quyền bằng anon key**
-
-Đây là bước quan trọng nhất của cả task — nó là thứ duy nhất chứng minh dữ liệu công nợ thật sự được bảo vệ.
+- [ ] **Step 3: Kiểm tra bảng đã tạo và anon không đọc được**
 
 ```bash
 URL=$(grep NEXT_PUBLIC_SUPABASE_URL .env.local | cut -d= -f2)
 KEY=$(grep ANON_KEY .env.local | cut -d= -f2)
-H="-H apikey:$KEY -H Authorization:Bearer=$KEY"
 
-echo "--- 1. member_dues (mong doi: [] ) ---"
+echo "--- member_dues bang anon key (mong doi: [] ) ---"
 curl -s "$URL/rest/v1/member_dues?select=*" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
-echo; echo "--- 2. member_id (mong doi: loi 42501) ---"
-curl -s "$URL/rest/v1/fund_transactions?select=member_id" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
-echo; echo "--- 3. select=* (mong doi: loi 42501) ---"
-curl -s "$URL/rest/v1/fund_transactions?select=*" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
-echo; echo "--- 4. cot an toan (mong doi: co du lieu) ---"
-curl -s "$URL/rest/v1/fund_transactions?select=id,amount,category" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
+echo; echo "--- fund_transactions van doc duoc binh thuong ---"
+curl -s "$URL/rest/v1/fund_transactions?select=id,amount" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
 ```
 
-Kết quả đúng:
+Mong đợi: truy vấn đầu trả `[]` (mảng rỗng, **không phải lỗi** — RLS không có policy cho `anon` nên lọc sạch dòng); truy vấn sau vẫn có dữ liệu, chứng tỏ migration này chưa chạm gì tới quyền của bảng cũ.
 
-| Truy vấn | Mong đợi |
-|---|---|
-| 1 | `[]` — mảng rỗng, **không phải lỗi**. RLS không có policy cho `anon` nên lọc sạch dòng. Đừng tưởng "không lỗi = chưa bảo vệ". |
-| 2 | `{"code":"42501",..."permission denied for column member_id"...}` |
-| 3 | lỗi `42501` — `*` bung ra gồm cột đã thu hồi |
-| 4 | JSON có dữ liệu |
+Bảng còn rỗng nên `[]` ở đây **chưa chứng minh được RLS đang chặn**. Bằng chứng thật nằm ở Task 10, khi bảng đã có dữ liệu mà vẫn trả `[]`.
 
-Nếu 2 hoặc 3 trả về dữ liệu thay vì lỗi thì cặp `revoke`/`grant` chưa ăn — kiểm tra lại đã chạy đúng project chưa.
+- [ ] **Step 3b: Kiểm tra production vẫn sống**
+
+```bash
+curl -s -o /dev/null -w "/ %{http_code}\n" https://web-football-club.vercel.app/
+curl -s -o /dev/null -w "/quy %{http_code}\n" https://web-football-club.vercel.app/quy
+```
+
+Mong đợi: cả hai `200`. Nếu ra 500 thì migration đã chạm vào quyền của `fund_transactions` — kiểm tra lại đã bỏ đúng phần `revoke select on fund_transactions` khỏi file 0003 chưa.
 
 - [ ] **Step 4: Thêm types**
 
@@ -177,7 +164,7 @@ git commit -m "feat: add member_dues table with admin-only read access"
 
 ### Task 2: Tách hàm đọc sổ quỹ theo quyền
 
-Migration ở Task 1 vừa làm `select('*')` không còn chạy được với anon. Task này khôi phục các trang public.
+Chuẩn bị cho việc thu hồi quyền cột ở Task 9. Thay đổi này **an toàn với quyền hiện tại**: liệt kê cột tường minh vẫn chạy đúng khi `anon` còn quyền đọc cả bảng, nên deploy được ngay mà không cần migration nào đi kèm. Đúng thứ tự này thì production không có khoảng lỗi.
 
 **Files:**
 - Modify: `lib/data/fund-transactions.ts`
@@ -260,13 +247,13 @@ npm run build
 
 Mong đợi: test pass hết (test cũ của `fund-balance` vẫn hợp lệ vì object đầy đủ thoả `Pick`), build và type-check sạch.
 
-- [ ] **Step 5: Kiểm tra trang public đã sống lại**
+- [ ] **Step 5: Kiểm tra trang public không hỏng**
 
 ```bash
 npm run dev
 ```
 
-Ở cửa sổ chưa đăng nhập, mở `/` và `/quy` → phải render số dư như trước, không còn 500. Đây là bằng chứng cột đã grant khớp với cột code select.
+Ở cửa sổ chưa đăng nhập, mở `/` và `/quy` → số dư và bảng giao dịch render y như trước. Danh sách cột trong `PUBLIC_COLUMNS` phải khớp chính xác với danh sách sẽ grant ở Task 9; lệch một cột là Task 9 sẽ làm trang lỗi.
 
 - [ ] **Step 6: Commit**
 
@@ -1355,7 +1342,85 @@ git commit -m "feat: edit due amounts and delete empty periods"
 
 ---
 
-### Task 9: Kiểm thử toàn luồng và xác nhận không lộ dữ liệu
+### Task 9: Deploy rồi thu hồi quyền đọc cột
+
+Task duy nhất chạm tới quyền của `fund_transactions`. Đặt cuối cùng vì dự án chỉ có **một** Supabase project dùng chung cho local và production: revoke trước khi code mới lên production sẽ làm site đang sống lỗi 500 ở `/` và `/quy`.
+
+**Files:**
+- Create: `supabase/migrations/0004_restrict_fund_columns.sql`
+
+**Interfaces:**
+- Consumes: `PUBLIC_COLUMNS` trong `lib/data/fund-transactions.ts` (Task 2) — danh sách cột grant phải khớp chính xác.
+
+- [ ] **Step 1: Viết migration**
+
+Tạo `supabase/migrations/0004_restrict_fund_columns.sql`:
+
+```sql
+-- Chặn role `anon` đọc 2 cột nhạy cảm của fund_transactions, để không ai
+-- dựng lại được "ai đã đóng, ai chưa" qua REST API bằng anon key.
+--
+-- Phải revoke ở MỨC BẢNG rồi grant lại theo từng cột. Trong Postgres, quyền
+-- mức bảng và mức cột là hai thứ độc lập — chỉ cần một trong hai cho phép là
+-- đọc được. Vì anon đang có SELECT mức bảng từ grant mặc định của Supabase,
+-- viết `revoke select (member_id) on fund_transactions from anon` sẽ KHÔNG
+-- chặn được gì.
+--
+-- CHỈ chạy sau khi code dùng PUBLIC_COLUMNS đã deploy lên production. Danh
+-- sách dưới đây phải khớp chính xác PUBLIC_COLUMNS trong
+-- lib/data/fund-transactions.ts.
+revoke select on fund_transactions from anon;
+grant select (
+  id, transaction_type, category, amount, occurred_on, description, match_id, created_at
+) on fund_transactions to anon;
+```
+
+- [ ] **Step 2: Đối chiếu danh sách cột**
+
+```bash
+grep -n "PUBLIC_COLUMNS" -A2 lib/data/fund-transactions.ts
+grep -n "grant select" -A3 supabase/migrations/0004_restrict_fund_columns.sql
+```
+
+Hai danh sách phải trùng khít từng cột. Lệch một cột là production sẽ lỗi 500 ngay sau khi chạy migration.
+
+- [ ] **Step 3: Deploy code trước**
+
+```bash
+git push origin master
+```
+
+Chờ Vercel build xong, rồi xác nhận production đã chạy code mới:
+
+```bash
+curl -s -o /dev/null -w "/quy %{http_code}\n" https://web-football-club.vercel.app/quy
+```
+
+Mong đợi `200`. **Không chạy Step 4 trước khi bước này xong** — đó chính là thứ tự bảo vệ site khỏi khoảng lỗi.
+
+- [ ] **Step 4: Apply migration (thủ công, ngoài repo)**
+
+Supabase Dashboard → SQL Editor, dán toàn bộ file `0004`, bỏ chọn hết text, nhấn Run.
+
+- [ ] **Step 5: Xác nhận production vẫn sống sau khi revoke**
+
+```bash
+curl -s -o /dev/null -w "/ %{http_code}\n" https://web-football-club.vercel.app/
+curl -s -o /dev/null -w "/quy %{http_code}\n" https://web-football-club.vercel.app/quy
+```
+
+Mong đợi cả hai `200`. Nếu 500 thì danh sách cột lệch — so lại Step 2.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/0004_restrict_fund_columns.sql
+git commit -m "feat: restrict anon read access to fund transaction member columns"
+```
+
+---
+
+### Task 10: Kiểm thử toàn luồng và xác nhận không lộ dữ liệu
 
 **Files:** không sửa file nào — chỉ kiểm chứng.
 
@@ -1385,7 +1450,19 @@ Mong đợi: `0`.
 
 - [ ] **Step 3: Xác nhận anon key không đọc được công nợ**
 
-Lặp lại đúng 4 truy vấn ở Task 1 Step 3, lần này **sau khi đã có dữ liệu thật** trong `member_dues`:
+Chạy 4 truy vấn dưới đây, lần này **sau khi đã có dữ liệu thật** trong `member_dues` và migration `0004` đã apply:
+
+```bash
+URL=$(grep NEXT_PUBLIC_SUPABASE_URL .env.local | cut -d= -f2)
+KEY=$(grep ANON_KEY .env.local | cut -d= -f2)
+
+for Q in "member_dues?select=*" "fund_transactions?select=member_id" "fund_transactions?select=*" "fund_transactions?select=id,amount"; do
+  echo "--- $Q ---"
+  curl -s "$URL/rest/v1/$Q" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" | head -c 300
+  echo
+done
+```
+
 
 | Truy vấn | Mong đợi |
 |---|---|
