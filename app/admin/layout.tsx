@@ -10,6 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/thanh-vien">Thành viên</Link>
           <Link href="/admin/quy">Quỹ</Link>
           <Link href="/admin/tran-dau">Trận đấu</Link>
+          <Link href="/admin/cong-no">Công nợ</Link>
         </nav>
         <form action={signOut}>
           <button type="submit" className="text-sm text-red-600 hover:underline">
