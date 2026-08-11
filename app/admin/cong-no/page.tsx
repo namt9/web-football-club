@@ -1,7 +1,7 @@
 import { getMembers } from '@/lib/data/members'
 import { getDuePeriods, getDuesForPeriod, getAllDues, getDuePayments } from '@/lib/data/member-dues'
 import { computeDuesForPeriod, computeOutstandingByMember } from '@/lib/stats/member-dues'
-import { createPeriod } from './actions'
+import { createPeriod, recordPayments, undoPayment } from './actions'
 
 const statusLabel = {
   unpaid: 'Chưa đóng',
@@ -33,6 +33,7 @@ export default async function DuesPage({
   ])
 
   const rows = computeDuesForPeriod(periodDues, payments, members)
+  const dueIdByMemberId = new Map(periodDues.map((d) => [d.member_id, d.id]))
   const outstanding = computeOutstandingByMember(allDues, payments)
 
   return (
@@ -93,30 +94,88 @@ export default async function DuesPage({
             </button>
           </form>
 
-          <table className="mt-4 w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="py-2">Thành viên</th>
-                <th className="py-2">Phải đóng</th>
-                <th className="py-2">Đã đóng</th>
-                <th className="py-2">Trạng thái</th>
-                <th className="py-2">Tổng nợ lũy kế</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.memberId} className="border-b">
-                  <td className="py-2">{row.fullName}</td>
-                  <td className="py-2">{row.amountDue.toLocaleString('vi-VN')} đ</td>
-                  <td className="py-2">{row.amountPaid.toLocaleString('vi-VN')} đ</td>
-                  <td className="py-2">{statusLabel[row.status]}</td>
-                  <td className="py-2">
-                    {(outstanding.get(row.memberId) ?? 0).toLocaleString('vi-VN')} đ
-                  </td>
+          <form action={recordPayments.bind(null, selected)} className="mt-4">
+            <div className="flex items-end gap-3">
+              <div>
+                <label className="block text-sm font-medium">Ngày đóng</label>
+                <input
+                  name="occurred_on"
+                  type="date"
+                  required
+                  className="mt-1 rounded border px-3 py-2"
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded bg-green-700 px-4 py-2 text-white hover:bg-green-800"
+              >
+                Lưu các dòng đã tick
+              </button>
+            </div>
+
+            <table className="mt-4 w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2">Đã đóng</th>
+                  <th className="py-2">Thành viên</th>
+                  <th className="py-2">Phải đóng</th>
+                  <th className="py-2">Số tiền đóng</th>
+                  <th className="py-2">Đã ghi nhận</th>
+                  <th className="py-2">Trạng thái</th>
+                  <th className="py-2">Tổng nợ lũy kế</th>
                 </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const dueId = dueIdByMemberId.get(row.memberId)!
+                  return (
+                    <tr key={row.memberId} className="border-b">
+                      <td className="py-2">
+                        <input
+                          type="checkbox"
+                          name="paid_due_id"
+                          value={dueId}
+                          disabled={row.amountPaid > 0}
+                        />
+                      </td>
+                      <td className="py-2">{row.fullName}</td>
+                      <td className="py-2">{row.amountDue.toLocaleString('vi-VN')} đ</td>
+                      <td className="py-2">
+                        <input
+                          name={`amount_${dueId}`}
+                          type="number"
+                          min="1"
+                          step="1000"
+                          defaultValue={row.amountDue}
+                          className="w-28 rounded border px-2 py-1"
+                        />
+                      </td>
+                      <td className="py-2">{row.amountPaid.toLocaleString('vi-VN')} đ</td>
+                      <td className="py-2">{statusLabel[row.status]}</td>
+                      <td className="py-2">
+                        {(outstanding.get(row.memberId) ?? 0).toLocaleString('vi-VN')} đ
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </form>
+
+          <div className="mt-4 space-y-1">
+            {rows
+              .filter((row) => row.amountPaid > 0)
+              .map((row) => (
+                <form
+                  key={row.memberId}
+                  action={undoPayment.bind(null, dueIdByMemberId.get(row.memberId)!)}
+                >
+                  <button type="submit" className="text-sm text-red-600 hover:underline">
+                    Hoàn tác khoản đóng của {row.fullName}
+                  </button>
+                </form>
               ))}
-            </tbody>
-          </table>
+          </div>
           {rows.length === 0 && (
             <p className="mt-4 text-gray-500">Kỳ này chưa có nghĩa vụ nào.</p>
           )}
