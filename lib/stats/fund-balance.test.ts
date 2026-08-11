@@ -12,6 +12,7 @@ function tx(overrides: Partial<FundTransaction>): FundTransaction {
     description: null,
     match_id: null,
     member_id: null,
+    member_due_id: null,
     created_at: '2026-08-01T00:00:00Z',
     ...overrides,
   }
