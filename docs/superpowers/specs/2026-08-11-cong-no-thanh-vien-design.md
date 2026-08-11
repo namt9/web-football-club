@@ -61,10 +61,18 @@ create policy "admin read member_dues" on member_dues
 create policy "admin write member_dues" on member_dues
   for all using (auth.role() = 'authenticated');
 
-revoke select (member_id, member_due_id) on fund_transactions from anon;
+revoke all on member_dues from anon;
+
+-- Chặn anon đọc 2 cột nhạy cảm của fund_transactions.
+revoke select on fund_transactions from anon;
+grant select (
+  id, transaction_type, category, amount, occurred_on, description, match_id, created_at
+) on fund_transactions to anon;
 ```
 
-Câu `revoke` là phần dễ bị bỏ sót nhưng quan trọng nhất. Anon key nằm trong bundle client nên bất kỳ ai cũng gọi được REST API của Supabase trực tiếp. Nếu `anon` còn đọc được `fund_transactions.member_id`, họ join sang `members` là dựng lại đủ danh sách ai đã đóng ai chưa — đúng thứ spec muốn tránh, dù trang `/quy` không render thông tin đó. Chặn ở tầng DB thì trang public render gì cũng không lộ được.
+Cặp `revoke` rồi `grant` lại theo từng cột là bắt buộc, không viết gọn được thành `revoke select (member_id) ... from anon`. Trong Postgres, quyền mức bảng và quyền mức cột là hai thứ độc lập — chỉ cần một trong hai cho phép là đọc được. Role `anon` đang có `SELECT` mức bảng từ grant mặc định của Supabase, nên revoke lẻ từng cột sẽ không chặn được gì.
+
+Phần phân quyền này là chỗ dễ bị bỏ sót nhưng quan trọng nhất. Anon key nằm trong bundle client nên bất kỳ ai cũng gọi được REST API của Supabase trực tiếp. Nếu `anon` còn đọc được `fund_transactions.member_id`, họ join sang `members` là dựng lại đủ danh sách ai đã đóng ai chưa — đúng thứ spec muốn tránh, dù trang `/quy` không render thông tin đó. Chặn ở tầng DB thì trang public render gì cũng không lộ được.
 
 **Hệ quả cần sửa:** `lib/data/fund-transactions.ts` đang dùng `select('*')`, sẽ lỗi với role `anon` sau khi revoke. Phải liệt kê tường minh các cột an toàn: `id, transaction_type, category, amount, occurred_on, description, match_id, created_at`. Hàm đọc cho admin cần đủ cột thì tách thành hàm riêng.
 
@@ -150,9 +158,17 @@ Kỳ trùng đã bị `unique (member_id, period)` chặn ở DB; action phải 
 ## 7. Kiểm thử
 
 - **Unit test (Vitest):** hai hàm ở mục 4, đủ các trường hợp biên đã liệt kê.
-- **Kiểm thử thủ công:** tạo kỳ → tick vài người → mở `/quy` ở cửa sổ chưa đăng nhập, xác nhận số dư đã tăng nhưng **không** thấy tên ai; gọi thẳng REST API bằng anon key với `select=member_id` và xác nhận bị từ chối.
+- **Kiểm thử thủ công:** tạo kỳ → tick vài người → mở `/quy` ở cửa sổ chưa đăng nhập, xác nhận số dư đã tăng nhưng **không** thấy tên ai.
+- **Kiểm thử phân quyền bằng anon key**, gọi thẳng REST API của Supabase. Hai cơ chế khác nhau nên kết quả mong đợi cũng khác nhau:
 
-Bước kiểm thử thủ công thứ hai là bắt buộc — nó là thứ duy nhất chứng minh mục 3 thực sự có hiệu lực.
+| Truy vấn | Kết quả đúng | Vì sao |
+|---|---|---|
+| `member_dues?select=*` | `[]` (mảng rỗng, **không** phải lỗi) | RLS không có policy nào cho `anon` nên lọc sạch mọi dòng |
+| `fund_transactions?select=member_id` | lỗi `42501 permission denied for column member_id` | quyền mức cột đã bị thu hồi |
+| `fund_transactions?select=*` | lỗi `42501` | `*` bung ra gồm cả cột đã bị thu hồi — đây chính là lý do code public phải liệt kê cột tường minh |
+| `fund_transactions?select=id,amount` | có dữ liệu | các cột an toàn vẫn đọc được bình thường |
+
+Bước thứ hai là bắt buộc — nó là thứ duy nhất chứng minh mục 3 thực sự có hiệu lực. Lưu ý dòng thứ nhất trả về mảng rỗng chứ không báo lỗi, nên nếu chỉ kiểm tra "có lỗi hay không" thì sẽ tưởng là chưa được bảo vệ.
 
 ## 8. Ngoài phạm vi
 
