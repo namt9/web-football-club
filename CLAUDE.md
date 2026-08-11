@@ -67,3 +67,13 @@ middleware.ts                   # bảo vệ /admin/*
 - Tuân theo pattern hiện có: Server Component để đọc, Server Action để viết, Zod để validate, hàm thuần + test cho mọi tính toán tổng hợp.
 - Không thêm route `/api/*` trừ khi có client bên ngoài thực sự cần gọi vào.
 - Copy UI dùng tiếng Việt, giữ nhất quán với các trang hiện có (`Thu`/`Chi`, `Nội bộ`/`Giao hữu`, `Sắp tới`/`Đã diễn ra`).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
