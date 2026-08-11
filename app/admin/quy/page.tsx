@@ -1,9 +1,9 @@
-import { getFundTransactions } from '@/lib/data/fund-transactions'
+import { getFundTransactionsForAdmin } from '@/lib/data/fund-transactions'
 import { computeFundSummary } from '@/lib/stats/fund-balance'
 import { createFundTransaction } from './actions'
 
 export default async function AdminFundPage() {
-  const transactions = await getFundTransactions()
+  const transactions = await getFundTransactionsForAdmin()
   const summary = computeFundSummary(transactions)
 
   return (

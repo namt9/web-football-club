@@ -6,7 +6,7 @@ export interface FundSummary {
   balance: number
 }
 
-export function computeFundSummary(transactions: FundTransaction[]): FundSummary {
+export function computeFundSummary(transactions: Pick<FundTransaction, 'transaction_type' | 'amount'>[]): FundSummary {
   let totalIncome = 0
   let totalExpense = 0
 
