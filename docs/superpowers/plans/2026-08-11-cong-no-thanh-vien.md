@@ -750,12 +750,20 @@ export async function getAllDues(): Promise<MemberDue[]> {
   return data
 }
 
-/** Chỉ các giao dịch gắn với một nghĩa vụ — dùng để tính đã đóng bao nhiêu. */
+/**
+ * Chỉ các giao dịch THU gắn với một nghĩa vụ — dùng để tính đã đóng bao nhiêu.
+ *
+ * Bắt buộc lọc `transaction_type = 'income'`: hàm tính công nợ cộng thẳng
+ * `amount` mà không xem loại giao dịch, nên một khoản CHI vô tình gắn
+ * `member_due_id` sẽ bị cộng vào "đã đóng" thay vì trừ đi. Hiện chưa có đường
+ * nào trong UI tạo ra tình huống đó, nhưng chặn ở đây thì rẻ.
+ */
 export async function getDuePayments(): Promise<FundTransaction[]> {
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('fund_transactions')
     .select('*')
+    .eq('transaction_type', 'income')
     .not('member_due_id', 'is', null)
 
   if (error) throw error
