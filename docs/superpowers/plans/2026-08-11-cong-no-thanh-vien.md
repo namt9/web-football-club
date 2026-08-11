@@ -104,9 +104,11 @@ echo; echo "--- fund_transactions van doc duoc binh thuong ---"
 curl -s "$URL/rest/v1/fund_transactions?select=id,amount" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
 ```
 
-Mong đợi: truy vấn đầu trả `[]` (mảng rỗng, **không phải lỗi** — RLS không có policy cho `anon` nên lọc sạch dòng); truy vấn sau vẫn có dữ liệu, chứng tỏ migration này chưa chạm gì tới quyền của bảng cũ.
+Mong đợi: truy vấn đầu trả **lỗi `42501 permission denied for table member_dues`**; truy vấn sau vẫn có dữ liệu, chứng tỏ migration này chưa chạm gì tới quyền của bảng cũ.
 
-Bảng còn rỗng nên `[]` ở đây **chưa chứng minh được RLS đang chặn**. Bằng chứng thật nằm ở Task 10, khi bảng đã có dữ liệu mà vẫn trả `[]`.
+Lý do là lỗi chứ không phải `[]`: `revoke all on member_dues from anon` chặn ngay ở tầng privilege, trước khi RLS kịp chạy. Bảng này có **hai** lớp bảo vệ độc lập — thiếu grant, và không có policy nào cho `anon`. Giữ cả hai là có chủ ý: mọi bảng khác trong repo đều dùng policy `using (true)`, nên khả năng cao nhất là sau này có người copy pattern đó sang đây; lúc đó việc thiếu grant vẫn chặn được.
+
+Bảng còn rỗng nên bước này **chưa chứng minh được RLS đang chặn** (chỉ chứng minh privilege đang chặn). Bằng chứng cho lớp RLS nằm ở Task 10.
 
 - [ ] **Step 3b: Kiểm tra production vẫn sống**
 
@@ -1466,7 +1468,7 @@ done
 
 | Truy vấn | Mong đợi |
 |---|---|
-| `member_dues?select=*` | `[]` — có dữ liệu trong bảng nhưng RLS vẫn lọc sạch |
+| `member_dues?select=*` | lỗi `42501 permission denied for table member_dues` — bảng đã có dữ liệu thật mà anon vẫn không chạm tới được |
 | `fund_transactions?select=member_id` | lỗi `42501` |
 | `fund_transactions?select=*` | lỗi `42501` |
 | `fund_transactions?select=id,amount` | có dữ liệu |

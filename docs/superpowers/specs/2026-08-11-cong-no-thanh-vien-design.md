@@ -163,12 +163,14 @@ Kỳ trùng đã bị `unique (member_id, period)` chặn ở DB; action phải 
 
 | Truy vấn | Kết quả đúng | Vì sao |
 |---|---|---|
-| `member_dues?select=*` | `[]` (mảng rỗng, **không** phải lỗi) | RLS không có policy nào cho `anon` nên lọc sạch mọi dòng |
+| `member_dues?select=*` | lỗi `42501 permission denied for table member_dues` | `revoke all ... from anon` chặn ở tầng privilege, trước cả RLS |
 | `fund_transactions?select=member_id` | lỗi `42501 permission denied for column member_id` | quyền mức cột đã bị thu hồi |
 | `fund_transactions?select=*` | lỗi `42501` | `*` bung ra gồm cả cột đã bị thu hồi — đây chính là lý do code public phải liệt kê cột tường minh |
 | `fund_transactions?select=id,amount` | có dữ liệu | các cột an toàn vẫn đọc được bình thường |
 
-Bước thứ hai là bắt buộc — nó là thứ duy nhất chứng minh mục 3 thực sự có hiệu lực. Lưu ý dòng thứ nhất trả về mảng rỗng chứ không báo lỗi, nên nếu chỉ kiểm tra "có lỗi hay không" thì sẽ tưởng là chưa được bảo vệ.
+Bước thứ hai là bắt buộc — nó là thứ duy nhất chứng minh mục 3 thực sự có hiệu lực.
+
+Lưu ý `member_dues` có **hai** lớp bảo vệ độc lập: thiếu grant (`revoke all ... from anon`) và không có policy RLS nào cho `anon`. Lớp privilege chặn trước nên kết quả quan sát được là lỗi `42501`, và vì thế bài test này **không** nhìn thấy được lớp RLS. Giữ cả hai là có chủ ý: mọi bảng khác trong repo đều dùng policy `using (true)`, nên rủi ro thực tế cao nhất là sau này có người copy pattern đó sang bảng này — lúc đó việc thiếu grant vẫn là thứ chặn được anon.
 
 ## 8. Ngoài phạm vi
 
