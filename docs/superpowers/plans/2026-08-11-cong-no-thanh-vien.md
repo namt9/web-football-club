@@ -48,7 +48,7 @@
 **Interfaces:**
 - Produces: bảng `member_dues`; cột `fund_transactions.member_due_id`; type `MemberDue`, `PublicFundTransaction`; field `member_due_id` trên `FundTransaction`.
 
-> **Thứ tự có chủ ý:** migration này **không** chạm tới quyền đọc của `fund_transactions`, nên apply xong production vẫn chạy bình thường với code cũ. Phần thu hồi quyền cột nằm ở migration `0004`, cố ý để lại Task 10 — chạy sau khi code mới đã deploy. Dự án chỉ có một Supabase project dùng chung cho local và production, nên revoke sớm sẽ làm site đang sống lỗi 500 ngay.
+> **Thứ tự có chủ ý:** migration này **không** chạm tới quyền đọc của `fund_transactions`, nên apply xong production vẫn chạy bình thường với code cũ. Phần thu hồi quyền cột nằm ở migration `0004`, cố ý để lại Task 9 — chạy sau khi code mới đã deploy. Dự án chỉ có một Supabase project dùng chung cho local và production, nên revoke sớm sẽ làm site đang sống lỗi 500 ngay.
 
 - [ ] **Step 1: Viết migration**
 
@@ -85,7 +85,7 @@ create policy "admin write member_dues" on member_dues
 revoke all on member_dues from anon;
 
 -- Phần thu hồi quyền cột của fund_transactions nằm ở 0004, chạy sau khi code
--- mới đã deploy. Xem Task 10.
+-- mới đã deploy. Xem Task 9.
 ```
 
 - [ ] **Step 2: Apply migration (thủ công, ngoài repo)**
