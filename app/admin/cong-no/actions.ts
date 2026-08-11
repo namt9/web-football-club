@@ -29,7 +29,18 @@ export async function createPeriod(formData: FormData) {
   if (rows.length > 0) {
     const supabase = await createSupabaseServerClient()
     const { error } = await supabase.from('member_dues').insert(rows)
-    if (error) throw error
+
+    if (error) {
+      // 23505 = unique_violation trên `unique (member_id, period)`. Lọc
+      // `alreadyHasDue` ở trên đã chặn trường hợp thường, nên lỗi này chỉ còn
+      // xảy ra khi hai submit gần như đồng thời cùng đọc được một ảnh chụp
+      // "chưa có ai" rồi cùng insert. Đổi thành câu tiếng Việt thay vì để lỗi
+      // Postgres thô nổi lên tận UI.
+      if (error.code === '23505') {
+        throw new Error('Kỳ này vừa được tạo bởi một thao tác khác. Hãy tải lại trang để xem danh sách mới nhất.')
+      }
+      throw error
+    }
   }
 
   revalidatePath('/admin/cong-no')
