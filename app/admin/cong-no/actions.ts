@@ -50,39 +50,68 @@ export async function recordPayments(period: string, formData: FormData) {
   const dueIds = formData.getAll('paid_due_id').map(String)
   if (dueIds.length === 0) return
 
-  const payments = await getDuePayments()
+  const [members, dues, payments] = await Promise.all([
+    getMembers(),
+    getDuesForPeriod(period),
+    getDuePayments(),
+  ])
+
+  const memberByDueId = new Map(dues.map((d) => [d.id, d.member_id]))
+  const nameById = new Map(members.map((m) => [m.id, m.full_name]))
   const alreadyPaid = new Set(
     payments.map((p) => p.member_due_id).filter((id): id is string => id !== null)
   )
   const occurredOn = String(formData.get('occurred_on') ?? '')
 
   // Bỏ qua nghĩa vụ đã có giao dịch → submit lại nhiều lần không thu 2 lần.
-  const rows = dueIds
-    .filter((dueId) => !alreadyPaid.has(dueId))
-    .map((dueId) =>
-      paymentSchema.parse({
-        member_due_id: dueId,
-        amount: formData.get(`amount_${dueId}`),
-        occurred_on: occurredOn,
-      })
-    )
-    .map((payment) => ({
+  const pending = dueIds.filter((dueId) => !alreadyPaid.has(dueId))
+  if (pending.length === 0) return
+
+  // Mọi nghĩa vụ được tick phải thuộc đúng kỳ đang mở. `memberByDueId` chỉ chứa
+  // nghĩa vụ của kỳ này, nên thiếu key nghĩa là dòng đó không thuộc kỳ. Dừng
+  // hẳn thay vì ghi: ghi vào sẽ tạo giao dịch không có `member_id`, tức dữ liệu
+  // sai âm thầm ở một cột thật. Không xảy ra qua UI, chỉ qua request tự tạo.
+  const foreign = pending.filter((dueId) => !memberByDueId.has(dueId))
+  if (foreign.length > 0) {
+    throw new Error('Có dòng không thuộc kỳ đang xem. Hãy tải lại trang rồi thử lại.')
+  }
+
+  // Validate toàn bộ TRƯỚC khi ghi bất cứ gì. Một dòng sai thì không lưu dòng
+  // nào — nhưng phải nói rõ dòng nào sai, kèm tên người, thay vì để ZodError
+  // thô nổi lên và làm mất cả lô mà admin không biết vì sao.
+  const invalid: string[] = []
+  const rows = []
+
+  for (const dueId of pending) {
+    const parsed = paymentSchema.safeParse({
+      member_due_id: dueId,
+      amount: formData.get(`amount_${dueId}`),
+      occurred_on: occurredOn,
+    })
+
+    const memberId = memberByDueId.get(dueId)!
+
+    if (!parsed.success) {
+      const name = nameById.get(memberId) ?? 'Không rõ'
+      invalid.push(`${name}: ${parsed.error.issues.map((i) => i.message).join(', ')}`)
+      continue
+    }
+
+    rows.push({
       transaction_type: 'income' as const,
       category: 'Quỹ tháng',
-      amount: payment.amount,
-      occurred_on: payment.occurred_on,
-      member_due_id: payment.member_due_id,
-      member_id: null as string | null,
-    }))
+      amount: parsed.data.amount,
+      occurred_on: parsed.data.occurred_on,
+      member_due_id: parsed.data.member_due_id,
+      member_id: memberId,
+    })
+  }
+
+  if (invalid.length > 0) {
+    throw new Error(invalid.join('; '))
+  }
 
   if (rows.length === 0) return
-
-  // Gắn member_id để đối chiếu về sau; lấy từ chính nghĩa vụ.
-  const dues = await getDuesForPeriod(period)
-  const memberByDueId = new Map(dues.map((d) => [d.id, d.member_id]))
-  for (const row of rows) {
-    row.member_id = memberByDueId.get(row.member_due_id) ?? null
-  }
 
   const supabase = await createSupabaseServerClient()
   const { error } = await supabase.from('fund_transactions').insert(rows)
