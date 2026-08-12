@@ -1,7 +1,7 @@
 import { getMembers } from '@/lib/data/members'
 import { getDuePeriods, getDuesForPeriod, getAllDues, getDuePayments } from '@/lib/data/member-dues'
 import { computeDuesForPeriod, computeOutstandingByMember } from '@/lib/stats/member-dues'
-import { createPeriod, recordPayments, undoPayment } from './actions'
+import { createPeriod, recordPayments, undoPayment, updateAmountDue, deletePeriod } from './actions'
 
 const statusLabel = {
   unpaid: 'Chưa đóng',
@@ -176,6 +176,39 @@ export default async function DuesPage({
                 </form>
               ))}
           </div>
+
+          <details className="mt-6">
+            <summary className="cursor-pointer text-sm font-medium">Sửa mức phải đóng</summary>
+            <div className="mt-2 space-y-2">
+              {rows.map((row) => (
+                <form
+                  key={row.memberId}
+                  action={updateAmountDue}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input type="hidden" name="id" value={dueIdByMemberId.get(row.memberId)!} />
+                  <span className="w-40">{row.fullName}</span>
+                  <input
+                    name="amount_due"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    defaultValue={row.amountDue}
+                    className="w-28 rounded border px-2 py-1"
+                  />
+                  <button type="submit" className="rounded border px-3 py-1 hover:bg-gray-50">
+                    Lưu
+                  </button>
+                </form>
+              ))}
+            </div>
+          </details>
+
+          <form action={deletePeriod.bind(null, selected)} className="mt-6">
+            <button type="submit" className="text-sm text-red-600 hover:underline">
+              Xoá kỳ {formatPeriod(selected)}
+            </button>
+          </form>
           {rows.length === 0 && (
             <p className="mt-4 text-gray-500">Kỳ này chưa có nghĩa vụ nào.</p>
           )}

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { createPeriodSchema, paymentSchema } from '@/lib/validations/member-due'
+import { createPeriodSchema, paymentSchema, updateAmountDueSchema } from '@/lib/validations/member-due'
 import { getMembers } from '@/lib/data/members'
 import { getDuesForPeriod, getDuePayments } from '@/lib/data/member-dues'
 
@@ -132,4 +132,43 @@ export async function undoPayment(dueId: string) {
   revalidatePath('/admin/quy')
   revalidatePath('/quy')
   revalidatePath('/')
+}
+
+export async function updateAmountDue(formData: FormData) {
+  const parsed = updateAmountDueSchema.safeParse({
+    id: formData.get('id'),
+    amount_due: formData.get('amount_due'),
+  })
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(', '))
+  }
+
+  const supabase = await createSupabaseServerClient()
+  const { error } = await supabase
+    .from('member_dues')
+    .update({ amount_due: parsed.data.amount_due })
+    .eq('id', parsed.data.id)
+  if (error) throw error
+
+  revalidatePath('/admin/cong-no')
+}
+
+export async function deletePeriod(period: string) {
+  const dues = await getDuesForPeriod(period)
+  const dueIds = new Set(dues.map((d) => d.id))
+  const payments = await getDuePayments()
+
+  // Chặn xoá kỳ đã có tiền thật vào quỹ — xoá sẽ làm giao dịch mất liên kết
+  // (FK là `on delete set null`) nên không còn biết khoản đó thuộc kỳ nào.
+  const hasPayment = payments.some((p) => p.member_due_id && dueIds.has(p.member_due_id))
+  if (hasPayment) {
+    throw new Error('Kỳ này đã có người đóng tiền, không xoá được. Hãy hoàn tác các khoản đóng trước.')
+  }
+
+  const supabase = await createSupabaseServerClient()
+  const { error } = await supabase.from('member_dues').delete().eq('period', period)
+  if (error) throw error
+
+  revalidatePath('/admin/cong-no')
 }
