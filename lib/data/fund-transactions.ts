@@ -6,7 +6,8 @@ import type { FundTransaction, PublicFundTransaction } from '@/lib/types'
  * sẽ lỗi 42501 vì bung ra cả `member_id`/`member_due_id` đã bị thu hồi quyền.
  * Danh sách này PHẢI khớp với `grant select (...)` trong supabase/migrations/0004_restrict_fund_columns.sql.
  */
-const PUBLIC_COLUMNS = 'id, transaction_type, category, amount, occurred_on, description, match_id, created_at'
+export const PUBLIC_COLUMNS =
+  'id, transaction_type, category, amount, occurred_on, description, match_id, created_at'
 
 /** Dùng cho mọi trang public. */
 export async function getFundTransactions(): Promise<PublicFundTransaction[]> {

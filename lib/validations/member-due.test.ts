@@ -27,6 +27,10 @@ describe('createPeriodSchema', () => {
     expect(createPeriodSchema.safeParse({ period: '2026-9', amount_due: '1' }).success).toBe(false)
   })
 
+  it('từ chối số tiền để trống', () => {
+    expect(createPeriodSchema.safeParse({ period: '2026-09', amount_due: '' }).success).toBe(false)
+  })
+
   it('từ chối chuỗi đã là ngày đầy đủ', () => {
     expect(createPeriodSchema.safeParse({ period: '2026-09-01', amount_due: '1' }).success).toBe(false)
   })
@@ -71,6 +75,14 @@ describe('updateAmountDueSchema', () => {
     const result = updateAmountDueSchema.safeParse({
       id: '3ead81b0-a323-44bc-827d-abc47936f1c0',
       amount_due: '-5',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('từ chối số tiền để trống', () => {
+    const result = updateAmountDueSchema.safeParse({
+      id: '3ead81b0-a323-44bc-827d-abc47936f1c0',
+      amount_due: '',
     })
     expect(result.success).toBe(false)
   })

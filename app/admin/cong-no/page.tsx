@@ -144,7 +144,7 @@ export default async function DuesPage({
                         <input
                           name={`amount_${dueId}`}
                           type="number"
-                          min="1"
+                          min="0"
                           step="1000"
                           defaultValue={row.amountDue}
                           className="w-28 rounded border px-2 py-1"
@@ -193,6 +193,7 @@ export default async function DuesPage({
                     type="number"
                     min="0"
                     step="1000"
+                    required
                     defaultValue={row.amountDue}
                     className="w-28 rounded border px-2 py-1"
                   />
