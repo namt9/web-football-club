@@ -35,7 +35,9 @@ npx vitest run <path>   # chạy một file test cụ thể
 - **Tính toán tổng hợp (số dư quỹ, xếp hạng ghi bàn):** luôn là hàm thuần trong `lib/stats/*.ts`, tính từ dữ liệu gốc tại thời điểm truy vấn — không lưu số liệu tổng trong DB. Đây là phần duy nhất có unit test đầy đủ theo chiến lược test của spec.
 - **Auth:** `middleware.ts` ở root chặn mọi route `/admin/*` khi chưa đăng nhập, redirect về `/login`. Không có luồng đăng ký — admin được tạo tay qua Supabase Dashboard (Authentication → Users).
 - **Bảo mật ở tầng DB:** mọi bảng có RLS — policy "public read" (`using (true)`) cho SELECT, policy "admin write" (`auth.role() = 'authenticated'`) cho INSERT/UPDATE/DELETE. Middleware chặn ở tầng route, RLS chặn ở tầng DB — hai lớp độc lập.
-- **Không lưu thông tin công nợ cá nhân công khai:** trang `/quy` (public) chỉ hiện tổng thu/chi + lịch sử giao dịch, không hiện "ai đang nợ ai" — dữ liệu đó thuộc Phase 2 (`member_dues`, admin-only).
+- **Không lưu thông tin công nợ cá nhân công khai:** trang `/quy` (public) chỉ hiện tổng thu/chi + lịch sử giao dịch, không hiện "ai đang nợ ai". Dữ liệu này nằm ở `member_dues` và `/admin/cong-no`, chỉ admin xem được.
+- **Chặn công nợ cá nhân ở tầng DB, không chỉ ở tầng render.** `member_dues` là bảng duy nhất **không** có policy public read (và còn bị `revoke all ... from anon`). `fund_transactions` thì bị thu hồi quyền đọc hai cột `member_id`, `member_due_id` khỏi role `anon` (migration `0004`). Lý do: anon key nằm trong bundle client nên ai cũng gọi được REST API của Supabase — nếu chỉ dựa vào việc trang public không render thì vẫn lộ.
+- **Nếu sửa `PUBLIC_COLUMNS` trong `lib/data/fund-transactions.ts`** thì phải sửa cả `grant select (...)` trong `supabase/migrations/0004_restrict_fund_columns.sql`. Lệch một cột là mọi trang public trả 500. Có test ghim danh sách này ở `lib/data/fund-transactions.test.ts`.
 
 ## Cấu trúc thư mục
 
@@ -60,7 +62,9 @@ middleware.ts                   # bảo vệ /admin/*
 
 Đã có trong MVP: auth admin, CRUD thành viên, quản lý trận đấu (tạo/chọn người tham gia/chia đội A-B/nhập tỷ số + ghi bàn/kiến tạo), quỹ (thu chi + số dư), toàn bộ trang public.
 
-**Chưa làm (Giai đoạn 2, không implement trừ khi có yêu cầu mới):** sơ đồ vị trí/chiến thuật kéo-thả trên sân, theo dõi công nợ chi tiết theo tháng/từng thành viên (bảng `member_dues`).
+**Đã làm ở Giai đoạn 2:** theo dõi công nợ đóng góp theo tháng — bảng `member_dues` (chỉ lưu nghĩa vụ, số đã đóng luôn tính từ `fund_transactions` qua FK `member_due_id`), trang `/admin/cong-no`. Spec: `docs/superpowers/specs/2026-08-11-cong-no-thanh-vien-design.md`, gồm cả mục nợ kỹ thuật còn lại.
+
+**Chưa làm (không implement trừ khi có yêu cầu mới):** sơ đồ vị trí/chiến thuật kéo-thả trên sân (5 người / 7 người). Đây là phần UI phức tạp nhất dự án và là Client Component đầu tiên — nên có vòng spec riêng.
 
 ## Ghi chú khi thêm tính năng mới
 
