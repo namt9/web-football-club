@@ -172,7 +172,23 @@ Bước thứ hai là bắt buộc — nó là thứ duy nhất chứng minh m�
 
 Lưu ý `member_dues` có **hai** lớp bảo vệ độc lập: thiếu grant (`revoke all ... from anon`) và không có policy RLS nào cho `anon`. Lớp privilege chặn trước nên kết quả quan sát được là lỗi `42501`, và vì thế bài test này **không** nhìn thấy được lớp RLS. Giữ cả hai là có chủ ý: mọi bảng khác trong repo đều dùng policy `using (true)`, nên rủi ro thực tế cao nhất là sau này có người copy pattern đó sang bảng này — lúc đó việc thiếu grant vẫn là thứ chặn được anon.
 
-## 8. Ngoài phạm vi
+## 8. Nợ kỹ thuật sau khi triển khai
+
+Ghi lại từ final review, để không mất khi workspace tạm bị xoá. Không cái nào chặn việc dùng thật.
+
+**Đáng làm khi có dịp:**
+
+- `getDuePayments()` đọc không giới hạn dòng, mà PostgREST mặc định cắt ở 1000. Hậu quả tệ hơn "tổng sai": nếu bị cắt, dòng bị mất khỏi `alreadyPaid` và `recordPayments` sẽ **thu lần hai** một nghĩa vụ đã đóng — âm thầm. Với ~11 người × 12 tháng ≈ 132 dòng/năm thì ngưỡng khoảng 7 năm. Cách sửa bền nhất là giới hạn truy vấn theo đúng các nghĩa vụ đang xét (`.in('member_due_id', dueIds)`) thay vì đọc cả bảng.
+- Thông báo lỗi tiếng Việt trong Server Action **không bao giờ hiện ra** ở production: Next.js che message thành digest, và repo không có `app/error.tsx` hay `app/admin/error.tsx`. Nên `throw` chỉ đủ để chặn hành động, không đủ để giải thích. Đáng chú ý nhất là guard của `deletePeriod` — xoá kỳ đã có tiền là nhầm lẫn bình thường, không phải trường hợp hiếm. Bước nhỏ nhất có ích: thêm `app/admin/error.tsx` với link tải lại trang. Muốn hiện đúng câu tiếng Việt thì phải `return` message qua `useActionState` chứ không `throw` — đây là convention sẵn có của cả repo, không riêng tính năng này.
+
+**Biết và chấp nhận:**
+
+- Bấm đúp thật (~100ms) có thể lọt vào khoảng đọc→ghi của `recordPayments` và tạo hai dòng thu cho một nghĩa vụ. Nhìn thấy ngay trong bảng admin (`Đã ghi nhận` gấp đôi) và sửa bằng một cú Hoàn tác. **Không** nên thêm unique index trên `member_due_id` — làm vậy sẽ chặn luôn khả năng đóng nhiều lần mà mục 4 thiết kế cho.
+- Xoá một thành viên sẽ xoá sạch lịch sử công nợ của họ (`on delete cascade`), nhưng tiền vẫn ở lại sổ quỹ dưới dạng dòng không gắn ai — số dư không đổi. Cùng cách repo đã xử lý `match_participants`/`match_events`.
+- Trạng thái `partial` chỉ ra được theo chiều ngược (Hoàn tác). UI không có đường đóng bù thêm, dù hàm thuần có hỗ trợ và có test cho việc cộng dồn nhiều lần đóng.
+- Firefox không có `<input type="month">`, nó tụt xuống ô text; nhập sai định dạng sẽ bị regex chặn nhưng admin không thấy lý do (xem mục thông báo lỗi ở trên).
+
+## 9. Ngoài phạm vi
 
 - Sơ đồ vị trí/chiến thuật kéo-thả — hệ thống độc lập, có spec riêng ở vòng sau.
 - Hiển thị công nợ cá nhân trên trang public — cố ý không bao giờ làm.
