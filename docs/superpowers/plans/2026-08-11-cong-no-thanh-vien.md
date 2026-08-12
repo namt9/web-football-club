@@ -675,7 +675,8 @@ const DATE_INPUT = /^\d{4}-\d{2}-\d{2}$/
 const amountDueField = z
   .string()
   .min(1, 'Số tiền không được để trống')
-  .pipe(z.coerce.number().min(0, 'Số tiền không được âm'))
+  .transform((value) => Number(value))
+  .pipe(z.number().min(0, 'Số tiền không được âm'))
 
 export const createPeriodSchema = z.object({
   period: z
