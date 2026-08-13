@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import type { Match, MatchParticipant, MatchEvent, Member } from '@/lib/types'
+import type { Match, MatchParticipant, MatchEvent, MatchLineup, Member } from '@/lib/types'
 
 export async function getMatches(): Promise<Match[]> {
   const supabase = await createSupabaseServerClient()
@@ -36,6 +36,14 @@ export async function getMatchParticipants(
 export async function getMatchEvents(matchId: string): Promise<MatchEvent[]> {
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase.from('match_events').select('*').eq('match_id', matchId)
+
+  if (error) throw error
+  return data
+}
+
+export async function getMatchLineups(matchId: string): Promise<MatchLineup[]> {
+  const supabase = await createSupabaseServerClient()
+  const { data, error } = await supabase.from('match_lineups').select('*').eq('match_id', matchId)
 
   if (error) throw error
   return data
