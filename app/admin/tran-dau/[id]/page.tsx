@@ -1,20 +1,121 @@
 import { notFound } from 'next/navigation'
-import { getMatch, getMatchParticipants, getMatchEvents } from '@/lib/data/matches'
+import { getMatch, getMatchParticipants, getMatchEvents, getMatchLineups } from '@/lib/data/matches'
 import { getMembers } from '@/lib/data/members'
 import { formatVietnamDateTime } from '@/lib/datetime'
-import { setParticipants, recordResult } from '../actions'
+import { getFormationNames, getFormationSlots, isFieldSize, type FieldSize } from '@/lib/formations'
+import type { MatchParticipant, Member } from '@/lib/types'
+import { setParticipants, recordResult, setLineup } from '../actions'
 
-export default async function ManageMatchPage({ params }: { params: Promise<{ id: string }> }) {
+function renderLineupTeamSection({
+  matchId,
+  team,
+  label,
+  fieldSize,
+  formationNames,
+  selectedFormation,
+  otherFormationValue,
+  participants,
+}: {
+  matchId: string
+  team: 'A' | 'B'
+  label: string
+  fieldSize: FieldSize
+  formationNames: string[]
+  selectedFormation: string
+  otherFormationValue: string
+  participants: (MatchParticipant & { member: Member })[]
+}) {
+  const slots = getFormationSlots(fieldSize, selectedFormation) ?? []
+  const teamParticipants = participants
+    .filter((p) => p.team === team)
+    .slice()
+    .sort((a, b) => (a.position_slot ? 1 : 0) - (b.position_slot ? 1 : 0))
+  const formationParam = team === 'A' ? 'formation_a' : 'formation_b'
+  const otherFormationParam = team === 'A' ? 'formation_b' : 'formation_a'
+
+  return (
+    <div className="rounded border p-4">
+      <h3 className="font-semibold">{label}</h3>
+
+      <form className="mt-2 flex items-end gap-2 text-sm">
+        <input type="hidden" name={otherFormationParam} value={otherFormationValue} />
+        <div>
+          <label className="block text-sm font-medium">Sơ đồ</label>
+          <select name={formationParam} defaultValue={selectedFormation} className="mt-1 rounded border px-2 py-1">
+            {formationNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="submit" className="rounded border px-3 py-1 hover:bg-gray-50">
+          Chọn
+        </button>
+      </form>
+
+      <form action={setLineup.bind(null, matchId, team)} className="mt-4 space-y-2">
+        <input type="hidden" name="formation" value={selectedFormation} />
+        {slots.map((slot) => {
+          const current = teamParticipants.find((p) => p.position_slot === slot.key)
+          return (
+            <div key={slot.key} className="flex items-center gap-2">
+              <span className="w-28 text-sm text-gray-600">{slot.label}</span>
+              <select
+                name={`slot_${slot.key}`}
+                defaultValue={current?.member_id ?? ''}
+                className="rounded border px-2 py-1 text-sm"
+              >
+                <option value="">-- Bỏ trống --</option>
+                {teamParticipants.map((p) => (
+                  <option key={p.member_id} value={p.member_id}>
+                    {p.member.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        })}
+        <button type="submit" className="rounded bg-green-700 px-4 py-2 text-white hover:bg-green-800">
+          Lưu sơ đồ
+        </button>
+      </form>
+    </div>
+  )
+}
+
+export default async function ManageMatchPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ formation_a?: string; formation_b?: string }>
+}) {
   const { id } = await params
+  const { formation_a, formation_b } = await searchParams
   const match = await getMatch(id)
   if (!match) notFound()
 
-  const [members, participants, events] = await Promise.all([
+  const [members, participants, events, lineups] = await Promise.all([
     getMembers(),
     getMatchParticipants(id),
     getMatchEvents(id),
+    getMatchLineups(id),
   ])
   const participantIds = new Set(participants.map((p) => p.member_id))
+
+  const fieldSize = isFieldSize(match.field_size) ? match.field_size : null
+  const formationNames = fieldSize ? getFormationNames(fieldSize) : []
+  const lineupA = lineups.find((l) => l.team === 'A')
+  const lineupB = lineups.find((l) => l.team === 'B')
+  const selectedFormationA =
+    (formation_a && formationNames.includes(formation_a) ? formation_a : lineupA?.formation) ??
+    formationNames[0] ??
+    ''
+  const selectedFormationB =
+    (formation_b && formationNames.includes(formation_b) ? formation_b : lineupB?.formation) ??
+    formationNames[0] ??
+    ''
 
   return (
     <div className="space-y-10">
@@ -52,6 +153,35 @@ export default async function ManageMatchPage({ params }: { params: Promise<{ id
           </button>
         </form>
       </section>
+
+      {fieldSize && (
+        <section>
+          <h2 className="text-lg font-bold">Sơ đồ đội hình</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {renderLineupTeamSection({
+              matchId: id,
+              team: 'A',
+              label: match.match_type === 'internal' ? 'Đội A' : 'Đội mình',
+              fieldSize,
+              formationNames,
+              selectedFormation: selectedFormationA,
+              otherFormationValue: selectedFormationB,
+              participants,
+            })}
+            {match.match_type === 'internal' &&
+              renderLineupTeamSection({
+                matchId: id,
+                team: 'B',
+                label: 'Đội B',
+                fieldSize,
+                formationNames,
+                selectedFormation: selectedFormationB,
+                otherFormationValue: selectedFormationA,
+                participants,
+              })}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-lg font-bold">Kết quả trận</h2>
