@@ -1,16 +1,65 @@
 import { notFound } from 'next/navigation'
-import { getMatch, getMatchParticipants, getMatchEvents } from '@/lib/data/matches'
+import { getMatch, getMatchParticipants, getMatchEvents, getMatchLineups } from '@/lib/data/matches'
 import { formatVietnamDateTime } from '@/lib/datetime'
+import { getFormationSlots, isFieldSize, type FieldSize } from '@/lib/formations'
+import type { MatchParticipant, Member } from '@/lib/types'
+
+function renderPitch({
+  fieldSize,
+  formation,
+  label,
+  participants,
+}: {
+  fieldSize: FieldSize
+  formation: string
+  label: string
+  participants: (MatchParticipant & { member: Member })[]
+}) {
+  const slots = getFormationSlots(fieldSize, formation) ?? []
+  const bench = participants.filter((p) => !p.position_slot)
+
+  return (
+    <div>
+      <h3 className="font-semibold">{label}</h3>
+      <div className="relative mt-2 aspect-[2/3] w-full max-w-xs rounded bg-green-700">
+        <div className="absolute left-0 top-1/2 h-px w-full bg-white/40" />
+        {slots.map((slot) => {
+          const player = participants.find((p) => p.position_slot === slot.key)
+          if (!player) return null
+          return (
+            <div
+              key={slot.key}
+              className="absolute -translate-x-1/2 -translate-y-1/2 text-center text-xs font-medium text-white"
+              style={{ top: `${slot.top}%`, left: `${slot.left}%` }}
+            >
+              {player.member.full_name}
+            </div>
+          )
+        })}
+      </div>
+      {bench.length > 0 && (
+        <p className="mt-2 text-sm text-gray-500">Dự bị: {bench.map((p) => p.member.full_name).join(', ')}</p>
+      )}
+    </div>
+  )
+}
 
 export default async function MatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const match = await getMatch(id)
   if (!match) notFound()
 
-  const [participants, events] = await Promise.all([getMatchParticipants(id), getMatchEvents(id)])
+  const [participants, events, lineups] = await Promise.all([
+    getMatchParticipants(id),
+    getMatchEvents(id),
+    getMatchLineups(id),
+  ])
 
   const teamA = participants.filter((p) => p.team === 'A')
   const teamB = participants.filter((p) => p.team === 'B')
+  const fieldSize = isFieldSize(match.field_size) ? match.field_size : null
+  const lineupA = lineups.find((l) => l.team === 'A')
+  const lineupB = lineups.find((l) => l.team === 'B')
 
   const eventLabel = (memberId: string) => {
     const memberEvents = events.filter((e) => e.member_id === memberId)
@@ -31,6 +80,26 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
         <p className="mt-2 text-xl font-bold">
           {match.team_a_score} : {match.team_b_score}
         </p>
+      )}
+
+      {fieldSize && (lineupA || lineupB) && (
+        <div className="mt-6 grid gap-6 sm:grid-cols-2">
+          {lineupA &&
+            renderPitch({
+              fieldSize,
+              formation: lineupA.formation,
+              label: match.match_type === 'internal' ? 'Đội A' : 'Đội mình',
+              participants: teamA,
+            })}
+          {match.match_type === 'internal' &&
+            lineupB &&
+            renderPitch({
+              fieldSize,
+              formation: lineupB.formation,
+              label: 'Đội B',
+              participants: teamB,
+            })}
+        </div>
       )}
 
       <div className="mt-6 grid gap-6 sm:grid-cols-2">
