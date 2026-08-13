@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { FORMATIONS, type FieldSize } from '@/lib/formations'
 
 const assignmentSchema = z.object({
-  slot: z.string().min(1),
-  member_id: z.string().uuid().nullable(),
+  slot: z.string().min(1, 'Vị trí không được để trống'),
+  member_id: z.string().uuid('Mã thành viên không hợp lệ').nullable(),
 })
 
 /**
