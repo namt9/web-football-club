@@ -56,6 +56,7 @@ export interface MatchParticipant {
   member_id: string
   team: ParticipantTeam
   confirmation: ParticipantConfirmation
+  position_slot: string | null
 }
 
 export type MatchEventType = 'goal' | 'assist'
@@ -75,5 +76,13 @@ export interface MemberDue {
   period: string
   amount_due: number
   note: string | null
+  created_at: string
+}
+
+export interface MatchLineup {
+  id: string
+  match_id: string
+  team: ParticipantTeam
+  formation: string
   created_at: string
 }
