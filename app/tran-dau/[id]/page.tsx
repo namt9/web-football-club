@@ -16,7 +16,18 @@ function renderPitch({
   participants: (MatchParticipant & { member: Member })[]
 }) {
   const slots = getFormationSlots(fieldSize, formation) ?? []
-  const bench = participants.filter((p) => !p.position_slot)
+  const placedMemberIds = new Set(
+    slots
+      .map((slot) => participants.find((p) => p.position_slot === slot.key)?.member_id)
+      .filter((id): id is string => id !== undefined)
+  )
+
+  // Nếu không ai thực sự đứng vào sân theo sơ đồ hiện tại (ví dụ danh sách
+  // tham gia vừa được sửa lại sau khi đã xếp sơ đồ, xoá hết position_slot),
+  // không hiện sân trống — coi như chưa có sơ đồ.
+  if (placedMemberIds.size === 0) return null
+
+  const bench = participants.filter((p) => !placedMemberIds.has(p.member_id))
 
   return (
     <div>
